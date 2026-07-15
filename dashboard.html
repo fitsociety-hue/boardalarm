@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>강동어울림복지관 모니터링 관리자 대시보드</title>
+  
+  <!-- FontAwesome for Premium Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom Glassmorphism Styles -->
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+  <div class="dashboard-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div>
+        <div class="sidebar-logo">
+          <i class="fa-solid fa-gauge-high"></i>
+          <h1>어울림 모니터링</h1>
+        </div>
+        <ul class="sidebar-menu">
+          <li class="sidebar-menu-item active" data-tab="tab-overview">
+            <a href="#overview"><i class="fa-solid fa-house icon"></i> 종합 현황</a>
+          </li>
+          <li class="sidebar-menu-item" data-tab="tab-urls">
+            <a href="#urls"><i class="fa-solid fa-link icon"></i> 모니터링 URL</a>
+          </li>
+          <li class="sidebar-menu-item" data-tab="tab-webhooks">
+            <a href="#webhooks"><i class="fa-solid fa-circle-nodes icon"></i> 구글챗 웹훅</a>
+          </li>
+          <li class="sidebar-menu-item" data-tab="tab-logs">
+            <a href="#logs"><i class="fa-solid fa-list-check icon"></i> 감지 & 발송 로그</a>
+          </li>
+          <li class="sidebar-menu-item" data-tab="tab-settings">
+            <a href="#settings"><i class="fa-solid fa-sliders icon"></i> 시스템 설정</a>
+          </li>
+        </ul>
+      </div>
+      
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-avatar">A</div>
+          <div class="user-info">
+            <h3>admin</h3>
+            <p>최고관리자</p>
+          </div>
+        </div>
+        <button onclick="logout()" class="btn btn-secondary" style="width: 100%; padding: 10px;">
+          <i class="fa-solid fa-right-from-bracket icon"></i> 로그아웃
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      
+      <!-- 1. OVERVIEW TAB PANEL -->
+      <section id="tab-overview" class="tab-panel active">
+        <div class="page-header">
+          <div>
+            <h2>종합 현황</h2>
+            <p>모니터링 대상 게시판과 웹훅의 현재 상태 및 실시간 스케줄러 동향</p>
+          </div>
+          <button onclick="refreshDashboard()" class="btn btn-primary">
+            <i class="fa-solid fa-arrows-rotate icon"></i> 새로고침
+          </button>
+        </div>
+
+        <!-- Dashboard Stat Cards Grid -->
+        <div class="stats-grid">
+          <div class="stat-card glass-card">
+            <div class="stat-icon"><i class="fa-solid fa-globe"></i></div>
+            <div class="stat-info">
+              <h3 id="statActiveUrls">-</h3>
+              <p>활성 모니터링 대상</p>
+            </div>
+          </div>
+          <div class="stat-card glass-card accent">
+            <div class="stat-icon"><i class="fa-solid fa-layer-group"></i></div>
+            <div class="stat-info">
+              <h3 id="statQueueCount">-</h3>
+              <p>대기 큐 (Queue) 적재 건수</p>
+            </div>
+          </div>
+          <div class="stat-card glass-card warning">
+            <div class="stat-icon"><i class="fa-solid fa-clock"></i></div>
+            <div class="stat-info">
+              <h3 id="statNextSend" style="font-size: 15px; margin-top: 5px;">-</h3>
+              <p>다음 09:00 발송 예정</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Status Card -->
+        <div class="content-card glass-card">
+          <div class="content-card-header">
+            <h3>마지막 수집 상태</h3>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 12px;">
+            <p>• **마지막 데이터 수집 감지 시각**: <span id="statLastCrawl" style="font-weight: bold; color: var(--primary-blue);">-</span></p>
+            <p>• **수집 주기**: 5분 간격 (Google Apps Script 시간 기반 트리거 작동)</p>
+            <p>• **조건부 알림 정책**: 월요일~금요일 09:00 ~ 18:00 KST 즉시 발송 / 그 외 시간은 적재 후 다음 발송 가능 시각에 일괄 발송</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2. MONITORING URLS TAB PANEL -->
+      <section id="tab-urls" class="tab-panel">
+        <div class="page-header">
+          <div>
+            <h2>모니터링 URL 관리</h2>
+            <p>감지 대상인 강동어울림복지관 게시판의 목록 URL을 추가하거나 관리합니다.</p>
+          </div>
+          <button onclick="openUrlModal()" class="btn btn-primary">
+            <i class="fa-solid fa-plus icon"></i> 대상 URL 추가
+          </button>
+        </div>
+
+        <div class="content-card glass-card">
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>이름 (라벨)</th>
+                  <th>대상 URL</th>
+                  <th>상태</th>
+                  <th>등록일</th>
+                  <th>관리</th>
+                </tr>
+              </thead>
+              <tbody id="urlTableBody">
+                <tr>
+                  <td colspan="5" style="text-align: center;">데이터를 불러오는 중입니다...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3. WEBHOOKS TAB PANEL -->
+      <section id="tab-webhooks" class="tab-panel">
+        <div class="page-header">
+          <div>
+            <h2>구글챗 웹훅 URL 관리</h2>
+            <p>새 글 알림을 발송할 구글챗 스페이스의 Incoming Webhook URL을 설정합니다.</p>
+          </div>
+          <button onclick="openWebhookModal()" class="btn btn-primary">
+            <i class="fa-solid fa-plus icon"></i> 웹훅 추가
+          </button>
+        </div>
+
+        <div class="content-card glass-card">
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>웹훅 이름</th>
+                  <th>Webhook URL</th>
+                  <th>등록일</th>
+                  <th>작업</th>
+                </tr>
+              </thead>
+              <tbody id="webhookTableBody">
+                <tr>
+                  <td colspan="4" style="text-align: center;">데이터를 불러오는 중입니다...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4. LOGS TAB PANEL -->
+      <section id="tab-logs" class="tab-panel">
+        <div class="page-header">
+          <div>
+            <h2>감지 & 발송 로그 조회</h2>
+            <p>크롤러로 감지된 최신 게시글 내역과 구글챗 웹훅 전송 로그를 확인할 수 있습니다.</p>
+          </div>
+          <button onclick="refreshLogs()" class="btn btn-secondary">
+            <i class="fa-solid fa-arrows-rotate icon"></i> 로그 갱신
+          </button>
+        </div>
+
+        <!-- Post Log Card -->
+        <div class="content-card glass-card">
+          <div class="content-card-header">
+            <h3>최근 감지된 게시글 로그</h3>
+          </div>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>제목</th>
+                  <th>작성자</th>
+                  <th>게시일</th>
+                  <th>감지일</th>
+                  <th>처리 상태</th>
+                  <th>발송 시간</th>
+                </tr>
+              </thead>
+              <tbody id="postLogTableBody">
+                <tr>
+                  <td colspan="7" style="text-align: center;">로그를 조회하는 중입니다...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Send Log Card -->
+        <div class="content-card glass-card">
+          <div class="content-card-header">
+            <h3>웹훅 알림 발송 결과 로그</h3>
+          </div>
+          <div class="table-responsive">
+            <table>
+              <thead>
+                <tr>
+                  <th>로그 ID</th>
+                  <th>대상 글 ID</th>
+                  <th>웹훅 라벨</th>
+                  <th>발송 일시</th>
+                  <th>결과</th>
+                  <th>에러 내용</th>
+                </tr>
+              </thead>
+              <tbody id="sendLogTableBody">
+                <tr>
+                  <td colspan="6" style="text-align: center;">로그를 조회하는 중입니다...</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5. SYSTEM SETTINGS TAB PANEL -->
+      <section id="tab-settings" class="tab-panel">
+        <div class="page-header">
+          <div>
+            <h2>시스템 설정</h2>
+            <p>관리자 비밀번호 변경 및 기타 환경을 설정합니다.</p>
+          </div>
+        </div>
+
+        <div class="content-card glass-card" style="max-width: 550px;">
+          <div class="content-card-header">
+            <h3>비밀번호 변경</h3>
+          </div>
+          <form id="changePasswordForm">
+            <div class="form-group">
+              <label for="currentPw">현재 비밀번호</label>
+              <input type="password" id="currentPw" required placeholder="현재 비밀번호">
+            </div>
+            <div class="form-group">
+              <label for="newPw">새 비밀번호</label>
+              <input type="password" id="newPw" required placeholder="새 비밀번호 (4자리 이상)">
+            </div>
+            <div class="form-group">
+              <label for="newPwConfirm">새 비밀번호 확인</label>
+              <input type="password" id="newPwConfirm" required placeholder="새 비밀번호 확인">
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%;">
+              <i class="fa-solid fa-key icon"></i> 비밀번호 변경 저장
+            </button>
+          </form>
+        </div>
+
+        <!-- Expansion Point / Informational Card -->
+        <div class="content-card glass-card" style="max-width: 550px;">
+          <div class="content-card-header">
+            <h3>휴무일 및 공휴일 관리 (v2 확장 포인트)</h3>
+          </div>
+          <p style="margin-bottom: 12px;">현재 버전(v1.0.0)에서는 주말(토요일, 일요일)을 제외한 평일 09:00~18:00에 즉시 발송되도록 기본 설계되어 있습니다.</p>
+          <p>추후 법정 공휴일이나 복지관 자체 임시 휴무일 등을 지정하여 자동 큐잉 필터링이 가능하도록 Settings 시트의 `holidays` 설정을 통한 모듈식 확장이 준비되어 있습니다.</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- MODAL: ADD/EDIT MONITORING URL -->
+  <div id="urlModal" class="modal-overlay">
+    <div class="modal-card glass-card">
+      <div class="modal-header">
+        <h3 id="urlModalTitle">모니터링 대상 추가</h3>
+        <button onclick="closeUrlModal()" class="modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="urlForm">
+        <input type="hidden" id="urlId">
+        <div class="form-group">
+          <label for="urlLabel">이름 / 라벨</label>
+          <input type="text" id="urlLabel" required placeholder="예: 이용상담문의 1페이지">
+        </div>
+        <div class="form-group">
+          <label for="urlInput">모니터링 URL</label>
+          <input type="text" id="urlInput" required placeholder="https://gde.or.kr/counseling">
+        </div>
+        <div class="form-group" id="urlEnabledWrapper" style="display: none; align-items: center; gap: 8px;">
+          <input type="checkbox" id="urlEnabled" style="width: auto;">
+          <label for="urlEnabled" style="margin-bottom: 0;">감지 활성화</label>
+        </div>
+        <div class="modal-footer">
+          <button type="button" onclick="closeUrlModal()" class="btn btn-secondary">취소</button>
+          <button type="submit" class="btn btn-primary">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD/EDIT WEBHOOK -->
+  <div id="webhookModal" class="modal-overlay">
+    <div class="modal-card glass-card">
+      <div class="modal-header">
+        <h3 id="webhookModalTitle">구글챗 웹훅 추가</h3>
+        <button onclick="closeWebhookModal()" class="modal-close"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="webhookForm">
+        <input type="hidden" id="webhookId">
+        <div class="form-group">
+          <label for="webhookLabel">웹훅 이름 (라벨)</label>
+          <input type="text" id="webhookLabel" required placeholder="예: 복지관상담 채널알림">
+        </div>
+        <div class="form-group">
+          <label for="webhookUrlInput">Incoming Webhook URL</label>
+          <input type="text" id="webhookUrlInput" required placeholder="https://chat.googleapis.com/v1/spaces/...">
+        </div>
+        <div class="modal-footer">
+          <button type="button" onclick="closeWebhookModal()" class="btn btn-secondary">취소</button>
+          <button type="submit" class="btn btn-primary">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- API and Auth modules -->
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/auth.js"></script>
+  <script src="assets/js/dashboard.js"></script>
+</body>
+</html>

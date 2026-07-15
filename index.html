@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>강동어울림복지관 모니터링 관리자 로그인</title>
+  
+  <!-- FontAwesome for Premium Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Custom Glassmorphism Styles -->
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+  <div class="login-container">
+    <div class="login-card glass-card">
+      <div class="login-header">
+        <div class="logo-container">
+          <i class="fa-solid fa-bell-ring"></i>
+          <!-- Fallback icon if bell-ring is Pro only -->
+          <i class="fa-solid fa-bell"></i>
+        </div>
+        <h2>모니터링 & 알림 관리자</h2>
+        <p>복지관 게시판 실시간 모니터링 시스템</p>
+      </div>
+
+      <form class="login-form" id="loginForm">
+        <div class="form-group">
+          <label for="adminId">관리자 아이디</label>
+          <input type="text" id="adminId" required placeholder="아이디를 입력하세요">
+        </div>
+        <div class="form-group">
+          <label for="adminPw">비밀번호</label>
+          <input type="password" id="adminPw" required placeholder="비밀번호를 입력하세요">
+        </div>
+        <button type="submit" class="btn btn-primary">
+          <i class="fa-solid fa-right-to-bracket icon"></i> 로그인
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- API and Auth modules -->
+  <script src="assets/js/api.js"></script>
+  <script src="assets/js/auth.js"></script>
+  
+  <!-- Inline Form Handler -->
+  <script>
+    document.getElementById("loginForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      
+      const id = document.getElementById("adminId").value.trim();
+      const pw = document.getElementById("adminPw").value.trim();
+
+      if (!id || !pw) {
+        showToast("아이디와 비밀번호를 모두 입력해 주십시오.", "warning");
+        return;
+      }
+
+      showToast("로그인 진행 중...", "info");
+      
+      const response = await callApi("login", { id: id, pw: pw });
+
+      if (response && response.success) {
+        showToast("로그인 성공! 대시보드로 이동합니다.", "success");
+        // 토큰 저장 (12시간 유효)
+        localStorage.setItem("admin_token", response.data.token);
+        localStorage.setItem("admin_token_expires", response.data.expires);
+        
+        setTimeout(() => {
+          window.location.href = "dashboard.html";
+        }, 1200);
+      } else {
+        showToast(response.message || "로그인에 실패했습니다. 비밀번호를 다시 확인해 주세요.", "error");
+      }
+    });
+  </script>
+</body>
+</html>
