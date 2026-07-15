@@ -237,10 +237,15 @@ function checkNewPosts() {
 
   urls.forEach(function(monitorRow) {
     try {
-      var htmlContent = UrlFetchApp.fetch(monitorRow.url, {
+      var response = UrlFetchApp.fetch(monitorRow.url, {
         headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" },
         muteHttpExceptions: true
-      }).getContentText("UTF-8");
+      });
+      var responseCode = response.getResponseCode();
+      if (responseCode !== 200) {
+        throw new Error("HTTP 오류 코드: " + responseCode);
+      }
+      var htmlContent = response.getContentText("UTF-8");
 
       var parsedPosts = parsePostList(htmlContent, monitorRow.url);
       
@@ -409,8 +414,8 @@ function parsePostList(htmlContent, boardUrl) {
   for (var i = 0; i < rows.length; i++) {
     var row = rows[i];
     
-    // board.php?bo_table=counseling&amp;wr_id=103 패턴 추출
-    var linkMatch = row.match(/href="([^"]*bo_table=([^"&]+)(?:&amp;|&)wr_id=(\d+))"/i);
+    // board.php?bo_table=counseling&amp;wr_id=103 패턴 추출 (작은따옴표, 큰따옴표 모두 처리)
+    var linkMatch = row.match(/href=["']([^"']*bo_table=([^"&]+)(?:&amp;|&)wr_id=(\d+))["']/i);
     if (!linkMatch) continue;
 
     var fullLink = linkMatch[1];
@@ -421,7 +426,7 @@ function parsePostList(htmlContent, boardUrl) {
     seenIds[wr_id] = true;
 
     // 제목 추출 (해당 wr_id를 포함한 a태그 텍스트)
-    var titleRegex = new RegExp('<a href="[^"]*wr_id=' + wr_id + '[^"]*">([\\s\\S]*?)<\/a>', 'i');
+    var titleRegex = new RegExp('<a[^>]*wr_id=' + wr_id + '[^>]*>([\\s\\S]*?)<\/a>', 'i');
     var titleMatch = row.match(titleRegex);
     var title = "";
     if (titleMatch) {
@@ -429,14 +434,17 @@ function parsePostList(htmlContent, boardUrl) {
       title = unescapeHtml(title);
     }
 
-    // 작성자 추출
+    // 작성자 추출 (클래스 속성 쿼트 무관하게 처리)
     var author = "";
-    var authorMatch = row.match(/<span class="sv_member">([\s\S]*?)<\/span>/i);
+    var authorMatch = row.match(/class=["']sv_member["'][^>]*>([\s\S]*?)<\/span>/i);
     if (!authorMatch) {
-      authorMatch = row.match(/<span class="sv_no_member">([\s\S]*?)<\/span>/i);
+      authorMatch = row.match(/class=["']sv_no_member["'][^>]*>([\s\S]*?)<\/span>/i);
     }
     if (!authorMatch) {
-      authorMatch = row.match(/<li class="name">([\s\S]*?)<\/li>/i);
+      authorMatch = row.match(/<span[^>]*class=["']sv_member["'][^>]*>([\s\S]*?)<\/span>/i);
+    }
+    if (!authorMatch) {
+      authorMatch = row.match(/<li[^>]*class=["']name["'][^>]*>([\s\S]*?)<\/li>/i);
     }
     if (authorMatch) {
       author = authorMatch[1].replace(/<[^>]+>/g, '').trim();
@@ -447,9 +455,9 @@ function parsePostList(htmlContent, boardUrl) {
 
     // 작성일 추출
     var dateStr = "";
-    var dateMatch = row.match(/<li class="date">.*?clock-o".*?>\s*<\/i>\s*([\d\-\:\s]+)/i);
+    var dateMatch = row.match(/class=["']date["'][^>]*>.*?clock-o".*?>\s*<\/i>\s*([\d\-\:\s]+)/i);
     if (!dateMatch) {
-      dateMatch = row.match(/<li class="date">([\s\S]*?)<\/li>/i);
+      dateMatch = row.match(/class=["']date["'][^>]*>([\s\S]*?)<\/li>/i);
     }
     if (dateMatch) {
       dateStr = dateMatch[1].replace(/<[^>]+>/g, '').trim();
@@ -521,6 +529,17 @@ function setupDatabase() {
     
     updateOrAddSetting("ADMIN_ID", "admin");
     updateOrAddSetting("ADMIN_PW_HASH", sha256("1234"));
+  }
+  
+  // 공휴일 기본 세팅 (설날/추석 등 확장을 위한 예시 가이드)
+  var ss = getSpreadsheet();
+  var settingsSheet = ss.getSheetByName("Settings");
+  if (settingsSheet) {
+    var settingsRows = getSheetRows("Settings");
+    var hasHolidays = settingsRows.some(function(r) { return r.Key === "holidays"; });
+    if (!hasHolidays) {
+      updateOrAddSetting("holidays", "2026-08-15, 2026-10-03, 2026-12-25");
+    }
   }
 }
 
@@ -683,8 +702,26 @@ function isBusinessHours(date) {
   var dayOfWeek = parseInt(Utilities.formatDate(date, "Asia/Seoul", "u")); // 1 (Mon) to 7 (Sun)
   var hour = parseInt(Utilities.formatDate(date, "Asia/Seoul", "H")); // 0 to 23
   
+  // 주말 필터링
+  if (dayOfWeek > 5) return false;
+  
+  // 공휴일 필터링 (v2 확장 포인트)
+  try {
+    var rows = getSheetRows("Settings");
+    var holidaySetting = rows.find(function(r) { return r.Key === "holidays"; });
+    if (holidaySetting && holidaySetting.Value) {
+      var todayStr = Utilities.formatDate(date, "Asia/Seoul", "yyyy-MM-dd");
+      var holidays = holidaySetting.Value.split(",").map(function(h) { return h.trim(); });
+      if (holidays.indexOf(todayStr) !== -1) {
+        return false; // 공휴일이므로 영업시간 외(큐 적재) 처리
+      }
+    }
+  } catch (e) {
+    // 설정 로드 에러 시 기존 평일/주말 및 시간 필터만 작동하도록 에러 전파 방지
+  }
+  
   // 평일(월~금) 09:00 ~ 18:00 (18:00 미만)
-  return (dayOfWeek >= 1 && dayOfWeek <= 5) && (hour >= 9 && hour < 18);
+  return (hour >= 9 && hour < 18);
 }
 
 function unescapeHtml(str) {

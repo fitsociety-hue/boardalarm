@@ -465,9 +465,13 @@ function escapeHtml(string) {
 
 function formatDateString(dateVal) {
   if (!dateVal) return "";
-  // 날짜 데이터가 날짜 객체 또는 문자열일 경우 가독성 좋게 변경
   try {
-    const d = new Date(dateVal);
+    let cleanDateVal = String(dateVal);
+    // YYYY-MM-DD HH:mm:ss 형식이면 공백을 T로 바꾸어 Safari 등 브라우저 호환성 확보
+    if (/^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}:\d{2}$/.test(cleanDateVal)) {
+      cleanDateVal = cleanDateVal.replace(" ", "T");
+    }
+    const d = new Date(cleanDateVal);
     if (isNaN(d.getTime())) {
       // 파싱 불가능한 단순 문자열
       return dateVal;
