@@ -800,3 +800,17 @@ function getNextSendTimeKst(now) {
   
   return Utilities.formatDate(target, "Asia/Seoul", "yyyy-MM-dd 09:00:00");
 }
+
+// 11. 트리거 자동 설정 함수 (사용자가 에디터에서 1회 실행하면 1분 주기 트리거가 생성됨)
+function createTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === "checkNewPosts") {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger("checkNewPosts")
+    .timeBased()
+    .everyMinutes(1)
+    .create();
+}
