@@ -220,11 +220,14 @@ function doPost(e) {
 // 3. 주기적 게시판 체크 및 새 글 감지 (5분 주기 시간 트리거 등록용)
 function checkNewPosts() {
   setupDatabase();
+  
+  // 큐 플러시 대상인지 체크 (모니터링 대상 URL 활성화 여부와 관계없이 9시에 큐는 비워야 함)
+  flushQueueIfDue();
+
   var urls = getSheetRows("MonitorUrls").filter(function(row) { return row.enabled === true || row.enabled === "true" || row.enabled === 1; });
   if (urls.length === 0) return;
 
   var webhooks = getSheetRows("Webhooks");
-  var postLogSheet = getOrCreateSheet("PostLog");
   var postLogs = getSheetRows("PostLog");
   var existingIds = {};
   postLogs.forEach(function(row) {
@@ -329,17 +332,17 @@ function checkNewPosts() {
     }
   });
 
-  // 큐 플러시 대상인지 체크 (5분 시간 트리거에서 동시에 수행)
-  flushQueueIfDue();
 }
 
 // 4. 큐 플러시 스케줄러 (평일 오전 9시 정각 ~ 09:10 사이 1회 일괄 발송)
 function flushQueueIfDue() {
   var now = new Date();
-  var dayOfWeek = parseInt(Utilities.formatDate(now, "Asia/Seoul", "u")); // 1(Mon) ~ 7(Sun)
-  var hour = parseInt(Utilities.formatDate(now, "Asia/Seoul", "H"));
+  var kstStr = Utilities.formatDate(now, "Asia/Seoul", "yyyy/MM/dd HH:mm:ss");
+  var kstDate = new Date(kstStr);
+  var dayOfWeek = kstDate.getDay(); // 0(Sun) ~ 6(Sat)
+  var hour = kstDate.getHours();
   
-  // 평일(월~금) 오전 9시 시간대 검증
+  // 평일(월~금: 1~5) 오전 9시 시간대 검증
   if (dayOfWeek >= 1 && dayOfWeek <= 5 && hour === 9) {
     var todayStr = Utilities.formatDate(now, "Asia/Seoul", "yyyy-MM-dd");
     var props = PropertiesService.getScriptProperties();
@@ -699,11 +702,13 @@ function getKstTimestamp() {
 }
 
 function isBusinessHours(date) {
-  var dayOfWeek = parseInt(Utilities.formatDate(date, "Asia/Seoul", "u")); // 1 (Mon) to 7 (Sun)
-  var hour = parseInt(Utilities.formatDate(date, "Asia/Seoul", "H")); // 0 to 23
+  var kstStr = Utilities.formatDate(date, "Asia/Seoul", "yyyy/MM/dd HH:mm:ss");
+  var kstDate = new Date(kstStr);
+  var dayOfWeek = kstDate.getDay(); // 0(Sun) ~ 6(Sat)
+  var hour = kstDate.getHours();
   
-  // 주말 필터링
-  if (dayOfWeek > 5) return false;
+  // 주말 필터링 (0: 일요일, 6: 토요일)
+  if (dayOfWeek === 0 || dayOfWeek === 6) return false;
   
   // 공휴일 필터링 (v2 확장 포인트)
   try {
@@ -772,8 +777,10 @@ function getStatusData() {
 
 // 다음 09:00 시간 추출 로직
 function getNextSendTimeKst(now) {
-  var dayOfWeek = parseInt(Utilities.formatDate(now, "Asia/Seoul", "u"));
-  var hour = parseInt(Utilities.formatDate(now, "Asia/Seoul", "H"));
+  var kstStr = Utilities.formatDate(now, "Asia/Seoul", "yyyy/MM/dd HH:mm:ss");
+  var kstDate = new Date(kstStr);
+  var dayOfWeek = kstDate.getDay(); // 0(Sun) ~ 6(Sat)
+  var hour = kstDate.getHours();
   
   var target = new Date(now.getTime());
   
@@ -784,8 +791,10 @@ function getNextSendTimeKst(now) {
     // 그 외에는 다음 날로 이동하며 평일을 찾음
     do {
       target.setDate(target.getDate() + 1);
-      dayOfWeek = parseInt(Utilities.formatDate(target, "Asia/Seoul", "u"));
-    } while (dayOfWeek > 5); // 6(Sat), 7(Sun) 이면 다시 하루 뒤
+      var targetKstStr = Utilities.formatDate(target, "Asia/Seoul", "yyyy/MM/dd HH:mm:ss");
+      var targetKstDate = new Date(targetKstStr);
+      dayOfWeek = targetKstDate.getDay(); // 0(Sun) ~ 6(Sat)
+    } while (dayOfWeek === 0 || dayOfWeek === 6); // 0(Sun), 6(Sat) 이면 다시 하루 뒤
     target.setHours(9, 0, 0, 0);
   }
   
