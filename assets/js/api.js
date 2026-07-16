@@ -3,7 +3,7 @@
  */
 
 // 사용자가 배포한 Google Apps Script 웹앱 URL을 입력합니다.
-const API_BASE = "https://script.google.com/macros/s/AKfycbzeMwiBjrVKlE5MK6E6KnvRij_2ziWJ42h6GfDgsOUYRwJ1hGpJ3DVXXZ9-Dwp2FmRN/exec";
+const API_BASE = "https://script.google.com/macros/s/AKfycbyitX0wgpXncsdA1CTOkyCS85iPXo0pnunTZZBBRvnh9jxIyw40Kk8No-cpI7jQU9zd/exec";
 
 /**
  * GAS Web App API 호출 공통 함수
