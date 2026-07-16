@@ -237,6 +237,7 @@ function checkNewPosts() {
   var now = new Date();
   var isBiz = isBusinessHours(now);
   var detectedAt = getKstTimestamp();
+  var todayKstStr = Utilities.formatDate(now, "Asia/Seoul", "yyyy-MM-dd");
 
   urls.forEach(function(monitorRow) {
     try {
@@ -253,6 +254,11 @@ function checkNewPosts() {
       var parsedPosts = parsePostList(htmlContent, monitorRow.url);
       
       parsedPosts.forEach(function(post) {
+        // 오늘 작성된 글만 감지 대상으로 필터링 (기존 과거 게시글 알림 도배 방지)
+        if (post.date && post.date !== todayKstStr) {
+          return;
+        }
+
         if (existingIds[post.id]) {
           return; // 이미 감지된 게시글
         }
